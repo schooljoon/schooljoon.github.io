@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offline Video Saver</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      padding: 2em;
+    }
+    input, button {
+      padding: 0.5em;
+      margin: 0.5em;
+      width: 80%;
+      max-width: 400px;
+    }
+    video {
+      width: 100%;
+      max-width: 720px;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Offline Video Saver</h1>
+  <input id="videoURL" type="text" placeholder="Paste direct .mp4 video URL here">
+  <button onclick="saveVideo()">Save Video</button>
+  <button onclick="loadVideo()">Load Saved Video</button>
+  <video id="videoPlayer" controls></video>
+
+  <script>
+    async function saveVideo() {
+      const url = document.getElementById('videoURL').value;
+      if (!url.endsWith(".mp4")) {
+        alert("Only direct .mp4 links are supported.");
+        return;
+      }
+
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+
+        const db = await openDB();
+        const tx = db.transaction("videos", "readwrite");
+        tx.objectStore("videos").put(blob, "savedVideo");
+        await tx.complete;
+
+        alert("Video saved for offline use!");
+      } catch (err) {
+        alert("Failed to fetch video. Make sure it's a direct link and CORS is enabled.");
+        console.error(err);
+      }
+    }
+
+    async function loadVideo() {
+      const db = await openDB();
+      const tx = db.transaction("videos", "readonly");
+      const blob = await tx.objectStore("videos").get("savedVideo");
+      if (!blob) {
+        alert("No video saved.");
+        return;
+      }
+
+      const video = document.getElementById('videoPlayer');
+      video.src = URL.createObjectURL(blob);
+      video.load();
+      video.play();
+    }
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open("OfflineVideoDB", 1);
+        request.onerror = () => reject("DB failed");
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore("videos");
+        };
+      });
+    }
+  </script>
+</body>
+</html>
